@@ -10,17 +10,22 @@ import java.time.format.DateTimeFormatter.BASIC_ISO_DATE
 
 plugins {
     java
-    kotlin("jvm") version "1.4.30"
+    kotlin("jvm") version "1.9.0"
     id("org.jlleitschuh.gradle.ktlint") version "9.4.1"
 }
 
 repositories {
-    jcenter()
+    mavenCentral()
 }
 
 val ghidraDir = System.getenv("GHIDRA_INSTALL_DIR")
     ?: (project.findProperty("ghidra.dir") as? String)
     ?: throw IllegalStateException("Can't find Ghidra installation directory from environment variable GHIDRA_INSTALL_DIR")
+
+val ghidraFiles = files(
+    fileTree("$ghidraDir/Ghidra/Framework") { include("**/*.jar") },
+    fileTree("$ghidraDir/Ghidra/Features") { include("**/*.jar") }
+)
 
 val ghidraProps = Properties().apply {
     file("$ghidraDir/Ghidra/application.properties").inputStream()
@@ -42,21 +47,16 @@ tasks.withType<KotlinCompile> {
     }
 }
 
-val ghidra: Configuration by configurations.creating
-
 dependencies {
-    ghidra(fileTree("$ghidraDir/Ghidra/Framework") { include("**/*.jar") })
-    ghidra(fileTree("$ghidraDir/Ghidra/Features") { include("**/*.jar") })
-
-    compileOnly(ghidra)
+    compileOnly(ghidraFiles)
+    testImplementation(ghidraFiles)
     implementation("com.google.guava:guava:30.1.1-jre")
-
-    testImplementation(ghidra)
     testImplementation(kotlin("stdlib-jdk8"))
     testImplementation(platform("org.junit:junit-bom:5.7.0"))
     testImplementation("org.junit.jupiter:junit-jupiter-api")
     testImplementation("org.junit.jupiter:junit-jupiter-params")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
+
 }
 
 val generateExtensionProps by tasks.registering() {
@@ -87,8 +87,8 @@ val compileSleigh by tasks.registering(JavaExec::class) {
     outputs.files(slaFile)
         .withPropertyName("outputFile")
 
-    classpath = configurations["ghidra"]
-    main = "ghidra.pcodeCPort.slgh_compile.SleighCompile"
+    classpath = ghidraFiles
+    mainClass.set("ghidra.pcodeCPort.slgh_compile.SleighCompile")
     args = listOf(
         "-u",
         "-l",
@@ -150,5 +150,5 @@ tasks.named<Test>("test") {
 defaultTasks("clean", "assemble")
 val compileKotlin: KotlinCompile by tasks
 compileKotlin.kotlinOptions {
-    languageVersion = "1.4"
+    languageVersion = "1.9"
 }
